@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+require 'nokogiri'
+require 'open-uri'
+require 'date'
+require 'awesome_print'
+
+module Yahoo
+  def self.url yy, m
+    "http://biz.yahoo.com/c/#{yy}/s#{m}.html"
+  end
+
+  def self.splits date
+    date = Date.parse(date)
+    yy = date.strftime('%y')
+    m = date.month
+    doc = Nokogiri::HTML(open(url(yy, m)))
+    splits_table = doc.xpath('//table').select{|x| x.values == ['100%', '0', '0', '0']}.first
+    splits_info = splits_table.css('tr').map do |row|
+      row.children.map do |element|
+        element.content
+      end
+    end
+    fail "Unexpected header column names" unless splits_info[0][1] == "Ex\nDate" &&
+                                                 splits_info[0][3] == "Symbol" &&
+                                                 splits_info[0][5] == "Ratio"
+    fail "Expected second row to be empty" unless splits_info[1].size < 2
+    splits_info[2..-1].map do |split|
+      {
+        ex_date: split[1],
+        symbol: split[3],
+        ratio: split[5]
+      }
+    end
+  end
+end
+
+ap Yahoo.splits(Date.today.to_s)
